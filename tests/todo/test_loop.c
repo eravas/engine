@@ -218,6 +218,8 @@ static bool rec_sim(void *ctx, uint64_t tick, const platform_input_t *input,
         e->handoff_tick = out->tick;
         e->polls_before = headless_poll_count();
     }
+    /* One payload slot, overwritten every tick: the previous payload is
+     * released or superseded by now, so reusing its memory is allowed. */
     r->payload = (uint32_t)tick * 10u + 7u;
     out->data = &r->payload;
     out->data_size = sizeof r->payload;

@@ -86,7 +86,9 @@ typedef struct loop_tasks {
      *        clock ticks do not consume tick numbers).
      * input: the input sampled for this tick. Valid during the call only.
      * out:   the hand-off to fill. out->tick is already set to `tick`; data
-     *        and data_size hold whatever the previous tick left there.
+     *        and data_size hold whatever the previous tick left there. That
+     *        earlier payload is released or about to be superseded (see
+     *        handoff.h), so its memory may be reused for this tick's.
      *
      * Return false to ask the loop to stop after this tick.
      * Must not call platform_time_us() or platform_present().
@@ -130,7 +132,8 @@ void loop_init(loop_t *l, const loop_tasks_t *tasks);
  *      exactly once, then sim_tick() with that input. If sim_tick() returns
  *      false, skip the remaining due ticks.
  *   3. If at least one tick ran in step 2, call render() exactly once with
- *      the hand-off left by the last of them.
+ *      the hand-off left by the last of them. The hand-offs of the earlier
+ *      ticks in this iteration are superseded and never rendered.
  *
  * If no tick is due, neither platform_poll_input() nor either callback is
  * called. Input is therefore consumed at exactly one poll per executed
