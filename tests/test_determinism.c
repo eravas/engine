@@ -72,10 +72,18 @@ static const det_script_t s_script = {s_runs, 7};
  */
 #define TOY_GOLDEN_HASH 0xa74b1560cb2fc9aeull
 
+/* det_run for tests that need the hash; a rejected script fails the test. */
+static uint64_t run_hash(const det_script_t *script, uint64_t ticks)
+{
+    uint64_t hash = 0;
+    REQUIRE(det_run(&s_subject, script, ticks, &hash));
+    return hash;
+}
+
 static void same_script_same_hash(void)
 {
     uint64_t hash = 0;
-    CHECK(det_check(&s_subject, &s_script, SCRIPT_TICKS, &hash));
+    CHECK(det_check(&s_subject, &s_script, SCRIPT_TICKS, &hash) == DET_SAME);
     CHECK(hash != DET_HASH_SEED);
     CHECK_EQ_U(s_toy.ticks_seen, SCRIPT_TICKS);
     CHECK_EQ_U(s_toy.presses, 2);
@@ -83,14 +91,13 @@ static void same_script_same_hash(void)
 
 static void hash_matches_recorded_value(void)
 {
-    CHECK_EQ_U(det_run(&s_subject, &s_script, SCRIPT_TICKS), TOY_GOLDEN_HASH);
+    CHECK_EQ_U(run_hash(&s_script, SCRIPT_TICKS), TOY_GOLDEN_HASH);
 }
 
 static void different_tick_count_changes_hash(void)
 {
-    uint64_t a = det_run(&s_subject, &s_script, SCRIPT_TICKS);
-    uint64_t b = det_run(&s_subject, &s_script, SCRIPT_TICKS - 1);
-    CHECK(a != b);
+    CHECK(run_hash(&s_script, SCRIPT_TICKS) !=
+          run_hash(&s_script, SCRIPT_TICKS - 1));
 }
 
 static void one_changed_input_changes_hash(void)
@@ -102,9 +109,7 @@ static void one_changed_input_changes_hash(void)
     runs[3].buttons |= PLATFORM_BTN_B; /* one extra button for four ticks */
     det_script_t script = {runs, 7};
 
-    uint64_t a = det_run(&s_subject, &s_script, SCRIPT_TICKS);
-    uint64_t b = det_run(&s_subject, &script, SCRIPT_TICKS);
-    CHECK(a != b);
+    CHECK(run_hash(&s_script, SCRIPT_TICKS) != run_hash(&script, SCRIPT_TICKS));
 }
 
 static void run_length_encoding_does_not_matter(void)
@@ -123,18 +128,49 @@ static void run_length_encoding_does_not_matter(void)
         {0, 3},
     };
     det_script_t script = {split, 10};
-    CHECK_EQ_U(det_run(&s_subject, &script, SCRIPT_TICKS),
-               det_run(&s_subject, &s_script, SCRIPT_TICKS));
+    CHECK_EQ_U(run_hash(&script, SCRIPT_TICKS),
+               run_hash(&s_script, SCRIPT_TICKS));
 }
 
 static void clock_does_not_influence_the_run(void)
 {
     /* The harness must never read time: after a run the virtual clock has
      * not been queried, so it still reads zero. */
-    uint64_t a = det_run(&s_subject, &s_script, SCRIPT_TICKS);
+    uint64_t a = run_hash(&s_script, SCRIPT_TICKS);
     CHECK_EQ_U(platform_time_us(), 0); /* harness made no clock queries */
-    uint64_t b = det_run(&s_subject, &s_script, SCRIPT_TICKS);
-    CHECK_EQ_U(a, b);
+    CHECK_EQ_U(run_hash(&s_script, SCRIPT_TICKS), a);
+}
+
+static void rejected_script_is_a_setup_failure_not_a_pass(void)
+{
+    /* One run more than the backend accepts. Before this was checked, both
+     * runs silently saw Quit from tick 0 and compared equal. */
+    static headless_input_run_t runs[HEADLESS_MAX_INPUT_RUNS + 1];
+    for (uint32_t i = 0; i <= HEADLESS_MAX_INPUT_RUNS; i++) {
+        runs[i].buttons = (i % 2u) != 0 ? PLATFORM_BTN_A : 0;
+        runs[i].count = 1;
+    }
+    det_script_t too_long = {runs, HEADLESS_MAX_INPUT_RUNS + 1};
+    uint64_t hash = 0x1234;
+
+    s_toy.ticks_seen = 77; /* sentinel: the subject must not be run */
+    CHECK(!det_run(&s_subject, &too_long, SCRIPT_TICKS, &hash));
+    CHECK_EQ_U(hash, 0x1234);
+    CHECK_EQ_U(s_toy.ticks_seen, 77);
+    CHECK(det_check(&s_subject, &too_long, SCRIPT_TICKS, &hash) ==
+          DET_SETUP_FAILED);
+    CHECK_EQ_U(hash, 0x1234);
+
+    /* At exactly the limit the script is accepted and exercised. */
+    det_script_t at_limit = {runs, HEADLESS_MAX_INPUT_RUNS};
+    CHECK(det_check(&s_subject, &at_limit, HEADLESS_MAX_INPUT_RUNS, &hash) ==
+          DET_SAME);
+    CHECK_EQ_U(s_toy.presses, HEADLESS_MAX_INPUT_RUNS / 2u);
+
+    /* Reserved button bits are rejected the same way. */
+    static const headless_input_run_t reserved[] = {{1u << 20, 5}};
+    det_script_t bad_bits = {reserved, 1};
+    CHECK(det_check(&s_subject, &bad_bits, 5, NULL) == DET_SETUP_FAILED);
 }
 
 /* A subject that is *not* deterministic, to prove det_check can fail. */
@@ -153,7 +189,7 @@ static void hidden_state_is_detected(void)
     uint32_t value;
     det_subject_t leaky = {&value, sizeof value, NULL, leaky_tick};
     s_hidden_counter = 0;
-    CHECK(!det_check(&leaky, &s_script, 10, NULL));
+    CHECK(det_check(&leaky, &s_script, 10, NULL) == DET_DIFFERENT);
 }
 
 static void hash_is_fnv1a_64(void)
@@ -175,4 +211,5 @@ TEST_MAIN(
     TEST(one_changed_input_changes_hash),
     TEST(run_length_encoding_does_not_matter),
     TEST(clock_does_not_influence_the_run),
+    TEST(rejected_script_is_a_setup_failure_not_a_pass),
     TEST(hidden_state_is_detected))

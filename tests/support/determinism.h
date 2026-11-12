@@ -9,7 +9,7 @@
  *
  * What a pass means: the subject's state after N ticks is a function of the
  * script alone *within this build*. Comparing the hash against a constant
- * recorded from another target (det_run + CHECK_EQ_U) extends that claim
+ * recorded from another target (det_run, then CHECK_EQ_U) extends that claim
  * across compilers and CPUs.
  *
  * Requirements on the subject:
@@ -55,17 +55,30 @@ uint64_t det_hash(const void *data, size_t size, uint64_t seed);
 
 /*
  * Reset the headless backend, install `script`, zero and init the state,
- * run `ticks` ticks and return the hash of the state. Ticks beyond the end
- * of the script see PLATFORM_BTN_QUIT, as any headless client would.
+ * run `ticks` ticks and store the hash of the state in *hash_out (which
+ * must be non-NULL). Ticks beyond the end of the script see
+ * PLATFORM_BTN_QUIT, as any headless client would.
+ *
+ * Returns false, without running the subject or writing *hash_out, if the
+ * backend rejects the script (too many runs, reserved button bits). A run
+ * that never received its script proves nothing, so that case is kept
+ * apart from any hash value.
  */
-uint64_t det_run(const det_subject_t *subject, const det_script_t *script,
-                 uint64_t ticks);
+bool det_run(const det_subject_t *subject, const det_script_t *script,
+             uint64_t ticks, uint64_t *hash_out);
+
+typedef enum det_result {
+    DET_SAME,         /* both runs produced the same hash */
+    DET_DIFFERENT,    /* the runs diverged: the subject is not deterministic */
+    DET_SETUP_FAILED  /* the script was rejected; nothing was compared */
+} det_result_t;
 
 /*
- * Run twice and compare. Returns true if both runs hash the same; the hash
- * of the first run is stored in *hash_out when it is non-NULL.
+ * Run twice and compare. Only DET_SAME is a pass. On DET_SAME and
+ * DET_DIFFERENT the hash of the first run is stored in *hash_out when it is
+ * non-NULL.
  */
-bool det_check(const det_subject_t *subject, const det_script_t *script,
-               uint64_t ticks, uint64_t *hash_out);
+det_result_t det_check(const det_subject_t *subject, const det_script_t *script,
+                       uint64_t ticks, uint64_t *hash_out);
 
 #endif /* TESTS_SUPPORT_DETERMINISM_H */

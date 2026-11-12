@@ -13,11 +13,13 @@ uint64_t det_hash(const void *data, size_t size, uint64_t seed)
     return h;
 }
 
-uint64_t det_run(const det_subject_t *subject, const det_script_t *script,
-                 uint64_t ticks)
+bool det_run(const det_subject_t *subject, const det_script_t *script,
+             uint64_t ticks, uint64_t *hash_out)
 {
     headless_reset();
-    headless_set_input_script(script->runs, script->run_count);
+    if (!headless_set_input_script(script->runs, script->run_count)) {
+        return false;
+    }
 
     memset(subject->state, 0, subject->state_size);
     if (subject->init != NULL) {
@@ -28,16 +30,21 @@ uint64_t det_run(const det_subject_t *subject, const det_script_t *script,
         platform_poll_input(&in);
         subject->tick(subject->state, t, &in);
     }
-    return det_hash(subject->state, subject->state_size, DET_HASH_SEED);
+    *hash_out = det_hash(subject->state, subject->state_size, DET_HASH_SEED);
+    return true;
 }
 
-bool det_check(const det_subject_t *subject, const det_script_t *script,
-               uint64_t ticks, uint64_t *hash_out)
+det_result_t det_check(const det_subject_t *subject, const det_script_t *script,
+                       uint64_t ticks, uint64_t *hash_out)
 {
-    uint64_t first = det_run(subject, script, ticks);
-    uint64_t second = det_run(subject, script, ticks);
+    uint64_t first;
+    uint64_t second;
+    if (!det_run(subject, script, ticks, &first) ||
+        !det_run(subject, script, ticks, &second)) {
+        return DET_SETUP_FAILED;
+    }
     if (hash_out != NULL) {
         *hash_out = first;
     }
-    return first == second;
+    return first == second ? DET_SAME : DET_DIFFERENT;
 }
