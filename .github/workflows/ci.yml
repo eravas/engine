@@ -58,7 +58,7 @@ jobs:
         run: cmake --preset host-sdl
       - name: Build
         run: cmake --build --preset host-sdl
-      - name: Smoke run on dummy drivers
+      - name: Smoke run and storage tests on dummy drivers
         run: ctest --preset host-sdl
 
   rp2350:
@@ -73,5 +73,7 @@ jobs:
         run: cmake --preset rp2350
       - name: Build
         run: cmake --build --preset rp2350
+      - name: RAM budget
+        run: ctest --preset rp2350
       - name: Size
-        run: arm-none-eabi-size build/rp2350/tests/smoke.elf
+        run: arm-none-eabi-size build/rp2350/tests/smoke.elf build/rp2350/tests/budget.elf

@@ -2,6 +2,17 @@
 # links against each of them.
 engine_add_app(smoke smoke/smoke_app.c)
 
+# The budget app links a real engine-sized block against every backend.
+engine_add_app(budget budget/budget_app.c)
+
+if(ENGINE_PLATFORM STREQUAL "rp2350")
+  # Host-side check of the cross-compiled ELF; nothing runs on the target.
+  add_test(NAME ram_budget
+    COMMAND ${CMAKE_COMMAND} -DNM=${CMAKE_NM} -DELF=$<TARGET_FILE:budget>
+      -DRESERVE=32768 -P ${CMAKE_CURRENT_SOURCE_DIR}/budget/check_ram_budget.cmake)
+  set_tests_properties(ram_budget PROPERTIES LABELS budget)
+endif()
+
 # The test runner needs a hosted C library, so it is not built for the MCU.
 if(NOT ENGINE_PLATFORM STREQUAL "rp2350")
   add_library(test_runner STATIC support/test.c)
@@ -84,8 +95,9 @@ add_test(NAME smoke_headless
   COMMAND smoke --frames 5 --dump-dir ${TEST_TMP_DIR}/smoke)
 add_test(NAME smoke_headless_script
   COMMAND smoke --input ${CMAKE_CURRENT_SOURCE_DIR}/smoke/input.txt)
-set_tests_properties(smoke_headless smoke_headless_script PROPERTIES
-  LABELS smoke)
+add_test(NAME budget_headless COMMAND budget --frames 3)
+set_tests_properties(smoke_headless smoke_headless_script budget_headless
+  PROPERTIES LABELS smoke)
 
 # ---- determinism: must pass ------------------------------------------------
 engine_add_test(test_determinism determinism test_determinism.c)
@@ -100,7 +112,9 @@ file(GLOB_RECURSE ENGINE_CODE CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/sim/*.[ch]
   ${CMAKE_SOURCE_DIR}/game/*.[ch])
 add_test(NAME lint_engine_code
-  COMMAND srclint ${ENGINE_CODE} ${CMAKE_CURRENT_SOURCE_DIR}/smoke/smoke_app.c)
+  COMMAND srclint ${ENGINE_CODE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/smoke/smoke_app.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/budget/budget_app.c)
 
 # The linter's own tests: a clean fixture, and one with a known finding count.
 add_test(NAME lint_accepts_clean_fixture

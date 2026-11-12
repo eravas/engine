@@ -1,6 +1,10 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "base",
@@ -37,30 +41,62 @@
     }
   ],
   "buildPresets": [
-    { "name": "host-headless", "configurePreset": "host-headless" },
-    { "name": "host-sdl", "configurePreset": "host-sdl" },
-    { "name": "rp2350", "configurePreset": "rp2350" }
+    {
+      "name": "host-headless",
+      "configurePreset": "host-headless"
+    },
+    {
+      "name": "host-sdl",
+      "configurePreset": "host-sdl"
+    },
+    {
+      "name": "rp2350",
+      "configurePreset": "rp2350"
+    }
   ],
   "testPresets": [
     {
       "name": "host-headless",
       "displayName": "Everything that must pass",
       "configurePreset": "host-headless",
-      "output": { "outputOnFailure": true },
-      "filter": { "exclude": { "label": "todo" } }
+      "output": {
+        "outputOnFailure": true
+      },
+      "filter": {
+        "exclude": {
+          "label": "todo"
+        }
+      }
     },
     {
       "name": "todo",
       "displayName": "Specifications of code not written yet",
       "configurePreset": "host-headless",
-      "output": { "outputOnFailure": true },
-      "filter": { "include": { "label": "todo" } }
+      "output": {
+        "outputOnFailure": true
+      },
+      "filter": {
+        "include": {
+          "label": "todo"
+        }
+      }
     },
     {
       "name": "host-sdl",
       "displayName": "SDL smoke run on dummy drivers",
       "configurePreset": "host-sdl",
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "rp2350",
+      "displayName": "RAM budget of the cross-compiled ELF (runs on the host)",
+      "configurePreset": "rp2350",
+      "output": {
+        "outputOnFailure": true,
+        "verbosity": "verbose"
+      }
     }
   ]
 }
