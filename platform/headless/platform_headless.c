@@ -30,6 +30,7 @@ static struct {
     uint32_t run_count;
     uint32_t run_index;   /* current run */
     uint32_t run_consumed; /* polls served from the current run */
+    bool     quit_latched; /* a scripted entry has raised Quit */
     uint64_t poll_count;
 
     /* display */
@@ -72,6 +73,7 @@ static void clear_script(void)
     g.run_count = 0;
     g.run_index = 0;
     g.run_consumed = 0;
+    g.quit_latched = false;
     g.poll_count = 0;
 }
 
@@ -83,6 +85,10 @@ bool headless_set_input_script(const headless_input_run_t *runs,
         return false;
     }
     for (uint32_t i = 0; i < run_count; i++) {
+        if ((runs[i].buttons & ~PLATFORM_BTN_VALID) != 0) {
+            clear_script();
+            return false;
+        }
         if (runs[i].count != 0) {
             g.runs[g.run_count++] = runs[i];
         }
@@ -157,6 +163,12 @@ bool headless_load_input_script(const char *path)
         if (!ok) {
             fprintf(stderr, "headless: %s:%u: expected '<buttons> [<count>]'\n",
                     path, line_no);
+            break;
+        }
+        if ((run.buttons & ~PLATFORM_BTN_VALID) != 0) {
+            fprintf(stderr, "headless: %s:%u: reserved button bits in 0x%08lx\n",
+                    path, line_no, (unsigned long)run.buttons);
+            ok = false;
             break;
         }
         if (run.count == 0) {
@@ -276,7 +288,10 @@ void platform_poll_input(platform_input_t *out)
         return;
     }
     const headless_input_run_t *run = &g.runs[g.run_index];
-    out->buttons = run->buttons;
+    if (run->buttons & PLATFORM_BTN_QUIT) {
+        g.quit_latched = true;
+    }
+    out->buttons = run->buttons | (g.quit_latched ? PLATFORM_BTN_QUIT : 0);
     if (++g.run_consumed == run->count) {
         g.run_index++;
         g.run_consumed = 0;

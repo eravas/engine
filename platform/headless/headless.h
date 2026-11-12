@@ -15,7 +15,9 @@
  *                        makes progress.
  *   platform_poll_input  Returns the next entry of the input script. Once
  *                        the script is exhausted (or if none was set) it
- *                        returns PLATFORM_BTN_QUIT alone, forever.
+ *                        returns PLATFORM_BTN_QUIT alone, forever. Quit is
+ *                        latched: after a scripted entry sets it, every
+ *                        later entry is returned with Quit added.
  *   platform_present     Copies the frame, counts it, and optionally writes
  *                        it as a binary PPM (P6). Never blocks.
  *   platform_audio_*     Stores the callback and returns true. Nothing
@@ -54,8 +56,10 @@ void headless_advance_time_us(uint64_t delta_us);
 
 /*
  * Replace the input script with a copy of `runs`. Returns false, leaving no
- * script set, if run_count > HEADLESS_MAX_INPUT_RUNS. Runs with count 0 are
- * skipped.
+ * script set, if run_count > HEADLESS_MAX_INPUT_RUNS or if any run has a
+ * bit outside PLATFORM_BTN_VALID: a script may only describe input that a
+ * conforming backend could produce. Runs with count 0 are skipped (their
+ * buttons are still checked).
  */
 bool headless_set_input_script(const headless_input_run_t *runs,
                                uint32_t run_count);
@@ -67,8 +71,9 @@ bool headless_set_input_script(const headless_input_run_t *runs,
  *
  * <buttons> is a PLATFORM_BTN_* mask in C notation (0x11, 17, 021) and
  * <count> the number of ticks it is held (default 1). Blank lines and
- * anything after '#' are ignored. Returns false on I/O or syntax errors
- * (reported on stderr), leaving no script set.
+ * anything after '#' are ignored. Returns false on I/O or syntax errors and
+ * on buttons outside PLATFORM_BTN_VALID (reported on stderr with the line
+ * number), leaving no script set.
  */
 bool headless_load_input_script(const char *path);
 

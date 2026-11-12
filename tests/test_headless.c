@@ -105,6 +105,47 @@ static void input_script_too_long_is_rejected(void)
     CHECK_EQ_U(poll(), 1);
 }
 
+static void input_quit_is_latched_once_scripted(void)
+{
+    static const headless_input_run_t runs[] = {
+        {PLATFORM_BTN_A, 1},
+        {PLATFORM_BTN_QUIT | PLATFORM_BTN_B, 1},
+        {0, 1},
+        {PLATFORM_BTN_UP, 2},
+    };
+    headless_reset();
+    REQUIRE(headless_set_input_script(runs, 4));
+    CHECK_EQ_U(poll(), PLATFORM_BTN_A);
+    CHECK_EQ_U(poll(), PLATFORM_BTN_QUIT | PLATFORM_BTN_B);
+    CHECK_EQ_U(poll(), PLATFORM_BTN_QUIT); /* stays set */
+    CHECK_EQ_U(poll(), PLATFORM_BTN_QUIT | PLATFORM_BTN_UP);
+    CHECK_EQ_U(poll(), PLATFORM_BTN_QUIT | PLATFORM_BTN_UP);
+    CHECK_EQ_U(poll(), PLATFORM_BTN_QUIT); /* exhausted */
+
+    /* A new script starts unlatched. */
+    REQUIRE(headless_set_input_script(runs, 1));
+    CHECK_EQ_U(poll(), PLATFORM_BTN_A);
+}
+
+static void input_script_with_reserved_bits_is_rejected(void)
+{
+    headless_input_run_t runs[3] = {
+        {PLATFORM_BTN_A, 1}, {PLATFORM_BTN_VALID, 1}, {0, 1}};
+    headless_reset();
+    CHECK(headless_set_input_script(runs, 3)); /* every valid bit at once */
+
+    static const uint32_t reserved[] = {1u << 10, 1u << 30, 0x7FFFFC00u};
+    for (size_t i = 0; i < sizeof reserved / sizeof reserved[0]; i++) {
+        runs[2].buttons = reserved[i];
+        runs[2].count = 1;
+        CHECK(!headless_set_input_script(runs, 3));
+        CHECK_EQ_U(poll(), PLATFORM_BTN_QUIT); /* no script left behind */
+
+        runs[2].count = 0; /* a skipped run is still checked */
+        CHECK(!headless_set_input_script(runs, 3));
+    }
+}
+
 static bool write_text(const char *path, const char *text)
 {
     FILE *f = fopen(path, "w");
@@ -141,6 +182,8 @@ static void input_script_file_errors_leave_no_script(void)
         "-1\n",           /* negative */
         "0x100000000\n",  /* does not fit 32 bits */
         "1\n1 x\n",       /* error after a good line */
+        "0x400\n",        /* reserved bit 10 */
+        "1\n0x40000000\n", /* reserved bit 30 after a good line */
     };
     const char *path = TEST_TMP_DIR "/script_bad.txt";
     for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
@@ -432,6 +475,8 @@ TEST_MAIN(
     TEST(input_script_plays_one_entry_per_poll_then_quits),
     TEST(input_script_is_independent_of_time),
     TEST(input_script_too_long_is_rejected),
+    TEST(input_quit_is_latched_once_scripted),
+    TEST(input_script_with_reserved_bits_is_rejected),
     TEST(input_script_file_is_parsed),
     TEST(input_script_file_errors_leave_no_script),
     TEST(present_copies_the_frame),
