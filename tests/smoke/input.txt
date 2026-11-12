@@ -1,0 +1,6 @@
+# Input script for the smoke app: <buttons> [<ticks>]
+0        3
+0x10     2      # A
+0x11     2      # A + Up
+0x200    1      # Select
+0        2
