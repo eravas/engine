@@ -52,7 +52,8 @@ int main(int argc, char **argv)
     uint64_t dump_every = 1;
     uint64_t time_step = 1000;
 
-    for (int i = 1; i < argc; i++) {
+    /* Every option takes exactly one value. */
+    for (int i = 1; i < argc; i += 2) {
         const char *opt = argv[i];
         const char *val = i + 1 < argc ? argv[i + 1] : NULL;
         bool ok = val != NULL;
@@ -72,7 +73,6 @@ int main(int argc, char **argv)
         if (!ok) {
             return usage(argv[0]);
         }
-        i++;
     }
 
     headless_reset();

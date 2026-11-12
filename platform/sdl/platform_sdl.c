@@ -259,7 +259,8 @@ int main(int argc, char **argv)
     int scale = 3;
     g.storage_dir = "storage";
 
-    for (int i = 1; i < argc; i++) {
+    /* Every option takes exactly one value. */
+    for (int i = 1; i < argc; i += 2) {
         const char *opt = argv[i];
         const char *val = i + 1 < argc ? argv[i + 1] : NULL;
         if (val == NULL) {
@@ -277,7 +278,6 @@ int main(int argc, char **argv)
         } else {
             return usage(argv[0]);
         }
-        i++;
     }
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
