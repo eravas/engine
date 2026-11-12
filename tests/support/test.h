@@ -48,6 +48,20 @@ extern jmp_buf test_abort_jmp;
                             argc, argv);                                 \
     }
 
+/*
+ * For test programs that run through a platform backend's own main():
+ * defines app_main() instead of main(). No test selection by argument.
+ */
+#define TEST_APP_MAIN(...)                                                \
+    int app_main(void)                                                    \
+    {                                                                     \
+        static const test_case_t cases[] = {__VA_ARGS__};                 \
+        char  name[] = "test";                                            \
+        char *argv[] = {name, NULL};                                      \
+        return test_run_all(cases, (int)(sizeof cases / sizeof cases[0]), \
+                            1, argv);                                     \
+    }
+
 #define CHECK(cond)                                  \
     do {                                             \
         if (!(cond)) {                               \

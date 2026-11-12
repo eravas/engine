@@ -2,14 +2,57 @@
 # links against each of them.
 engine_add_app(smoke smoke/smoke_app.c)
 
+# The test runner needs a hosted C library, so it is not built for the MCU.
+if(NOT ENGINE_PLATFORM STREQUAL "rp2350")
+  add_library(test_runner STATIC support/test.c)
+  engine_c11(test_runner)
+  target_link_libraries(test_runner PUBLIC engine_options)
+endif()
+
 if(ENGINE_PLATFORM STREQUAL "sdl")
-  # Runs without a display or sound card via SDL's dummy drivers.
+  # Everything here runs without a display or sound card, on SDL's dummy
+  # drivers.
+  set(SDL_DUMMY "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
   add_test(NAME smoke_sdl
     COMMAND smoke --frames 10 --storage-dir ${CMAKE_CURRENT_BINARY_DIR}/storage)
   set_tests_properties(smoke_sdl PROPERTIES
-    LABELS smoke
-    TIMEOUT 60
-    ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    LABELS smoke TIMEOUT 60 ENVIRONMENT "${SDL_DUMMY}")
+
+  # Storage conformance. See sdl/test_sdl_storage.c for the three scenarios.
+  set(SDL_STORAGE_DIR ${CMAKE_CURRENT_BINARY_DIR}/sdl_storage)
+  engine_add_app(test_sdl_storage sdl/test_sdl_storage.c)
+  target_compile_definitions(test_sdl_storage PRIVATE
+    TEST_STORAGE_DIR="${SDL_STORAGE_DIR}")
+  target_link_libraries(test_sdl_storage PRIVATE test_runner)
+
+  add_test(NAME sdl_storage_clean
+    COMMAND ${CMAKE_COMMAND} -E rm -rf ${SDL_STORAGE_DIR})
+  add_test(NAME sdl_storage_prepare
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${SDL_STORAGE_DIR}/slot5.bin)
+  set_tests_properties(sdl_storage_prepare PROPERTIES DEPENDS sdl_storage_clean)
+  set_tests_properties(sdl_storage_clean sdl_storage_prepare PROPERTIES
+    FIXTURES_SETUP sdl_storage_dir LABELS unit)
+
+  add_test(NAME sdl_storage
+    COMMAND test_sdl_storage --storage-dir ${SDL_STORAGE_DIR})
+  set_tests_properties(sdl_storage PROPERTIES
+    FIXTURES_REQUIRED sdl_storage_dir ENVIRONMENT "${SDL_DUMMY}")
+
+  # A directory that cannot exist: its parent is a regular file.
+  add_test(NAME sdl_storage_bad_dir
+    COMMAND test_sdl_storage
+      --storage-dir ${CMAKE_CURRENT_LIST_FILE}/storage)
+  # A directory name too long for the backend's path buffer.
+  string(REPEAT "long_directory_name/" 60 SDL_LONG_DIR)
+  add_test(NAME sdl_storage_long_dir
+    COMMAND test_sdl_storage
+      --storage-dir ${CMAKE_CURRENT_BINARY_DIR}/${SDL_LONG_DIR})
+  set_tests_properties(sdl_storage_bad_dir sdl_storage_long_dir PROPERTIES
+    ENVIRONMENT "${SDL_DUMMY};STORAGE_MODE=broken")
+
+  set_tests_properties(sdl_storage sdl_storage_bad_dir sdl_storage_long_dir
+    PROPERTIES LABELS unit TIMEOUT 60)
 endif()
 
 # Everything below needs the headless backend's control surface.
@@ -20,9 +63,9 @@ endif()
 set(TEST_TMP_DIR ${CMAKE_CURRENT_BINARY_DIR}/tmp)
 file(MAKE_DIRECTORY ${TEST_TMP_DIR}/smoke)
 
-add_library(test_support STATIC support/test.c support/determinism.c)
+add_library(test_support STATIC support/determinism.c)
 engine_c11(test_support)
-target_link_libraries(test_support PUBLIC platform_headless)
+target_link_libraries(test_support PUBLIC test_runner platform_headless)
 
 # engine_add_test(<name> <label> <source> [EXCLUDE_FROM_ALL])
 function(engine_add_test name label source)

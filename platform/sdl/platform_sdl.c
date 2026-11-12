@@ -18,11 +18,15 @@
  *   audio    Default playback device. The callback runs on SDL's audio
  *            thread. set_callback returns false if no device could be opened.
  *   storage  One file per slot, <dir>/slotN.bin, written to a temporary file
- *            and renamed over the old one.
+ *            and renamed over the old one. A slot reads as empty only when
+ *            its file does not exist; any other failure to open or read it
+ *            is an error. Directory paths too long for the internal name
+ *            buffer are rejected.
  */
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -184,9 +188,15 @@ bool platform_audio_set_callback(platform_audio_fn fn, void *user)
 
 /* ---- storage ----------------------------------------------------------- */
 
-static void slot_path(char *out, size_t cap, uint32_t slot, const char *ext)
+/*
+ * Build "<dir>/slotN.<ext>". Returns false if the name does not fit: a
+ * truncated name could make the temporary and final files the same path.
+ */
+static bool slot_path(char *out, size_t cap, uint32_t slot, const char *ext)
 {
-    snprintf(out, cap, "%s/slot%u.%s", g.storage_dir, (unsigned)slot, ext);
+    int n = snprintf(out, cap, "%s/slot%u.%s", g.storage_dir, (unsigned)slot,
+                     ext);
+    return n > 0 && (size_t)n < cap;
 }
 
 int32_t platform_storage_read(uint32_t slot, void *buf, uint32_t capacity)
@@ -195,11 +205,18 @@ int32_t platform_storage_read(uint32_t slot, void *buf, uint32_t capacity)
         return PLATFORM_STORAGE_ERROR;
     }
     char path[1024];
-    slot_path(path, sizeof path, slot, "bin");
+    if (!slot_path(path, sizeof path, slot, "bin")) {
+        return PLATFORM_STORAGE_ERROR;
+    }
 
+    errno = 0;
     FILE *f = fopen(path, "rb");
     if (f == NULL) {
-        return PLATFORM_STORAGE_EMPTY;
+        /* Only "no such file" means the slot was never written. Anything
+         * else (permissions, a bad path, an I/O error) must not look like a
+         * fresh slot, or the game would start over on top of a real save. */
+        return errno == ENOENT ? PLATFORM_STORAGE_EMPTY
+                               : PLATFORM_STORAGE_ERROR;
     }
     /* Read into a slot-sized scratch buffer so that an oversized blob is
      * detected without writing past the caller's buffer. */
@@ -224,8 +241,10 @@ bool platform_storage_write(uint32_t slot, const void *data, uint32_t size)
     }
     char path[1024];
     char tmp[1024];
-    slot_path(path, sizeof path, slot, "bin");
-    slot_path(tmp, sizeof tmp, slot, "tmp");
+    if (!slot_path(path, sizeof path, slot, "bin") ||
+        !slot_path(tmp, sizeof tmp, slot, "tmp")) {
+        return false;
+    }
 
     SDL_CreateDirectory(g.storage_dir);
     FILE *f = fopen(tmp, "wb");
