@@ -6,8 +6,6 @@
 # itself holds only the backend file plus the SDK.
 set(ENGINE_RP2350_BACKEND ${CMAKE_CURRENT_SOURCE_DIR}/platform_rp2350.c
     CACHE INTERNAL "")
-set_source_files_properties(${ENGINE_RP2350_BACKEND} PROPERTIES
-  COMPILE_OPTIONS "-Wall;-Wextra;-Werror")
 
 # The backend is compiled into each executable, so there is no library here.
 add_library(engine_platform INTERFACE)
@@ -17,9 +15,16 @@ add_library(engine_platform INTERFACE)
 function(engine_add_app name)
   add_library(${name}_app STATIC ${ARGN})
   engine_c11(${name}_app)
-  target_link_libraries(${name}_app PUBLIC kernel)
+  # PRIVATE: the executable must inherit the link dependency on the kernel
+  # but not our compile options, which would then apply to SDK sources.
+  target_link_libraries(${name}_app PRIVATE kernel)
 
   add_executable(${name} ${ENGINE_RP2350_BACKEND})
+  # Our warnings for the backend file only. Source properties are scoped to
+  # the directory of the target that compiles the file, hence TARGET_DIRECTORY.
+  set_source_files_properties(${ENGINE_RP2350_BACKEND}
+    TARGET_DIRECTORY ${name}
+    PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra;-Wpedantic;-Werror")
   target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR})
   target_link_libraries(${name} PRIVATE ${name}_app pico_stdlib)
 endfunction()
