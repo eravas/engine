@@ -22,7 +22,8 @@ endif()
 # headers by repository-relative path: "kernel/platform.h".
 add_library(engine_options INTERFACE)
 target_include_directories(engine_options INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(engine_options INTERFACE -Wall -Wextra -Werror)
+target_compile_options(engine_options INTERFACE
+  -Wall -Wextra -Wpedantic -Werror)
 
 # Strict ISO C11 for a target. Kept off third-party code (SDL, Pico SDK).
 function(engine_c11 target)

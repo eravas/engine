@@ -75,26 +75,29 @@ void platform_present(const uint8_t *pixels, const uint32_t *palette);
  * masks of consecutive ticks, which is what makes input recordable and
  * replayable.
  */
-enum {
-    PLATFORM_BTN_UP     = 1u << 0,
-    PLATFORM_BTN_DOWN   = 1u << 1,
-    PLATFORM_BTN_LEFT   = 1u << 2,
-    PLATFORM_BTN_RIGHT  = 1u << 3,
-    PLATFORM_BTN_A      = 1u << 4,
-    PLATFORM_BTN_B      = 1u << 5,
-    PLATFORM_BTN_X      = 1u << 6,
-    PLATFORM_BTN_Y      = 1u << 7,
-    PLATFORM_BTN_START  = 1u << 8,
-    PLATFORM_BTN_SELECT = 1u << 9,
-    /* Bits 10..30 are reserved and read as zero. */
+#define PLATFORM_BTN_UP     ((uint32_t)1 << 0)
+#define PLATFORM_BTN_DOWN   ((uint32_t)1 << 1)
+#define PLATFORM_BTN_LEFT   ((uint32_t)1 << 2)
+#define PLATFORM_BTN_RIGHT  ((uint32_t)1 << 3)
+#define PLATFORM_BTN_A      ((uint32_t)1 << 4)
+#define PLATFORM_BTN_B      ((uint32_t)1 << 5)
+#define PLATFORM_BTN_X      ((uint32_t)1 << 6)
+#define PLATFORM_BTN_Y      ((uint32_t)1 << 7)
+#define PLATFORM_BTN_START  ((uint32_t)1 << 8)
+#define PLATFORM_BTN_SELECT ((uint32_t)1 << 9)
 
-    /*
-     * The platform asks the application to stop: window closed, scripted
-     * input exhausted, frame limit reached. Once set it stays set on every
-     * later poll. Bare-metal backends never set it.
-     */
-    PLATFORM_BTN_QUIT   = 1u << 31
-};
+/*
+ * The platform asks the application to stop: window closed, scripted input
+ * exhausted, frame limit reached. Once set it stays set on every later
+ * poll. Bare-metal backends never set it.
+ */
+#define PLATFORM_BTN_QUIT   ((uint32_t)1 << 31)
+
+/*
+ * Every bit a backend may ever report. Bits 10..30 are reserved: they
+ * always read as zero, and no backend may set them.
+ */
+#define PLATFORM_BTN_VALID  ((uint32_t)0x800003FF)
 
 typedef struct platform_input {
     uint32_t buttons; /* OR of PLATFORM_BTN_* */
