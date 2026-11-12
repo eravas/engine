@@ -4,7 +4,7 @@
  *   srclint FILE...
  *
  * For each file (C source or header belonging to portable engine code):
- *   - no `float` or `double`;
+ *   - no `float` or `double`, and no floating-point literals (1.5, 1e3);
  *   - no malloc, calloc, realloc or free;
  *   - `#include <...>` only from a short list of freestanding headers plus
  *     <string.h>, which keeps SDL, the OS, stdio and chip SDKs out;
@@ -44,6 +44,13 @@ static void report(const char *file, int line, const char *what,
 
 static void check_word(const char *file, int line, const char *word)
 {
+    /* A decimal number with an exponent, such as 1e3. Hex is exempt. */
+    if (isdigit((unsigned char)word[0]) &&
+        !(word[0] == '0' && (word[1] == 'x' || word[1] == 'X')) &&
+        strpbrk(word, "eE") != NULL) {
+        report(file, line, "floating-point literal in engine code:", word);
+        return;
+    }
     for (size_t i = 0; i < COUNT(k_banned_words); i++) {
         if (strcmp(word, k_banned_words[i]) == 0) {
             report(file, line, "forbidden in engine code:", word);
@@ -128,6 +135,21 @@ static void scan(const char *file, FILE *f)
                 break;
             }
             /* A word has just ended. */
+            if (c == '.') {
+                /* "1." and "1.5" (number then dot) or ".5" (dot then digit)
+                 * are floating literals; "a.b" and "..." are not. */
+                int next = fgetc(f);
+                if (next != EOF) {
+                    ungetc(next, f);
+                }
+                bool after_number =
+                    word_len != 0 && isdigit((unsigned char)word[0]);
+                if (after_number || (word_len == 0 && isdigit(next))) {
+                    report(file, line, "floating-point literal in engine code:",
+                           after_number ? "<number>." : ".<digit>");
+                    word_len = 0; /* the number has been reported once */
+                }
+            }
             if (word_len != 0) {
                 word[word_len] = '\0';
                 if (directive) {

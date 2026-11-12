@@ -16,3 +16,10 @@ static int32_t freelist_head, floating, mallocs, double_buffer;
 static int32_t ratio = 6 / 2; /* a division, not a comment */
 
 #define STRINGIFY(x) #x /* '#' that is not at the start of a line */
+
+/* None of these is a floating-point literal. */
+struct pair { int32_t a, b; };
+static struct pair origin = {.a = 0x1e5, .b = 0xE};
+static int32_t member(const struct pair *p) { return p->a + origin.b; }
+static void variadic(int32_t n, ...);
+static const char *const version = "1.5e3";

@@ -65,7 +65,7 @@ add_test(NAME lint_accepts_clean_fixture
 add_test(NAME lint_rejects_dirty_fixture
   COMMAND srclint ${CMAKE_CURRENT_SOURCE_DIR}/lint/fixtures/dirty.c)
 set_tests_properties(lint_rejects_dirty_fixture PROPERTIES
-  PASS_REGULAR_EXPRESSION "srclint: 10 finding")
+  PASS_REGULAR_EXPRESSION "srclint: 13 finding")
 set_tests_properties(lint_engine_code lint_accepts_clean_fixture
   lint_rejects_dirty_fixture PROPERTIES LABELS lint)
 

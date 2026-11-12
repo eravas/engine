@@ -1,4 +1,4 @@
-/* Linter fixture: exactly 10 findings, one per marked line. */
+/* Linter fixture: exactly 13 findings, one per marked line. */
 #include <stdio.h>          /* 1: system header */
 #include <SDL3/SDL.h>       /* 2: system header */
 #  include  <stdlib.h>      /* 3: spacing does not hide it */
@@ -14,3 +14,7 @@ static void leak(void)
     p = realloc(p, 32);     /* 9 */
     free(p); /* 10 */ /* float: still a comment */
 }
+
+static int scaled = 3 * 1.5;   /* 11: literal with a point */
+static int big = 1e3;          /* 12: literal with an exponent */
+static int small = .5 * 4;     /* 13: literal starting with a point */
